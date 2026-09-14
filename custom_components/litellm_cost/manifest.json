@@ -1,12 +1,12 @@
 {
   "domain": "litellm_cost",
   "name": "LiteLLM Cost & Stats",
-  "codeowners": ["@daz"],
+  "codeowners": ["@dpoulson"],
   "config_flow": true,
-  "documentation": "https://github.com/daz/litellm_stats_integration",
+  "documentation": "https://github.com/dpoulson/litellm_stats",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/daz/litellm_stats_integration/issues",
+  "issue_tracker": "https://github.com/dpoulson/litellm_stats/issues",
   "requirements": [],
-  "version": "1.0.4"
+  "version": "1.0.5"
 }
