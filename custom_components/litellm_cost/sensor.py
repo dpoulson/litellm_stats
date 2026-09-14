@@ -43,6 +43,10 @@ SENSOR_DESCRIPTIONS: tuple[LiteLLMSensorEntityDescription, ...] = (
             "tags_spend": data.tag_spend,
             "keys_count": data.keys_count,
             "users_count": data.users_count,
+            "total_tokens": data.total_tokens,
+            "prompt_tokens": data.prompt_tokens,
+            "completion_tokens": data.completion_tokens,
+            "total_requests": data.total_requests,
         },
     ),
     LiteLLMSensorEntityDescription(
@@ -93,6 +97,31 @@ SENSOR_DESCRIPTIONS: tuple[LiteLLMSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda data: round(data.today_spend, 4) if data.today_spend is not None else None,
         is_supported=lambda data: data.today_spend is not None,
+    ),
+    LiteLLMSensorEntityDescription(
+        key="total_tokens",
+        name="Total Tokens",
+        icon="mdi:counter",
+        native_unit_of_measurement="tokens",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data.total_tokens,
+        attrs_fn=lambda data: {
+            "prompt_tokens": data.prompt_tokens,
+            "completion_tokens": data.completion_tokens,
+        },
+        is_supported=lambda data: data.total_tokens > 0,
+    ),
+    LiteLLMSensorEntityDescription(
+        key="total_requests",
+        name="Total Requests",
+        icon="mdi:message-badge-outline",
+        native_unit_of_measurement="requests",
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data.total_requests,
+        attrs_fn=lambda data: {
+            "failed_requests": data.failed_requests,
+        },
+        is_supported=lambda data: data.total_requests > 0,
     ),
     LiteLLMSensorEntityDescription(
         key="active_keys",

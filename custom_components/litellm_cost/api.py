@@ -45,6 +45,11 @@ class LiteLLMData:
     tag_spend: dict[str, float] = field(default_factory=dict)
     today_spend: float | None = None
     monthly_spend: float | None = None
+    total_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_requests: int = 0
+    failed_requests: int = 0
     raw_key_info: dict[str, Any] = field(default_factory=dict)
 
 
@@ -259,19 +264,43 @@ class LiteLLMApiClient:
                 _LOGGER.debug("%s endpoint unavailable: %s", endpoint, err)
         return None
 
-    async def get_daily_activity(self) -> list[dict[str, Any]] | None:
-        """Fetch daily user/proxy activity."""
-        today_str = date.today().isoformat()
-        try:
-            res = await self._request(
-                "GET",
-                "user/daily/activity",
-                params={"start_date": today_str, "end_date": today_str},
-            )
-            if isinstance(res, list):
-                return res
-        except (LiteLLMAuthError, LiteLLMApiError) as err:
-            _LOGGER.debug("Daily activity endpoint unavailable: %s", err)
+    async def get_aggregated_activity(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Fetch aggregated spend and token metrics from daily activity endpoints."""
+        params: dict[str, Any] = {}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+
+        for endpoint in ("user/daily/activity/aggregated", "team/daily/activity/aggregated", "user/daily/activity"):
+            try:
+                res = await self._request("GET", endpoint, params=params or None)
+                if isinstance(res, dict) and ("metadata" in res or "results" in res):
+                    return res
+                if isinstance(res, list):
+                    return {"results": res, "metadata": {}}
+            except (LiteLLMAuthError, LiteLLMApiError) as err:
+                _LOGGER.debug("%s endpoint unavailable: %s", endpoint, err)
+        return None
+
+    async def get_spend_logs(self, page_size: int = 100) -> list[dict[str, Any]] | None:
+        """Fetch latest spend logs to capture master key and unallocated requests."""
+        for endpoint, params in (
+            ("spend/logs/v2", {"page_size": page_size}),
+            ("spend/logs", None),
+        ):
+            try:
+                res = await self._request("GET", endpoint, params=params)
+                if isinstance(res, dict) and "results" in res:
+                    return res["results"]
+                if isinstance(res, list):
+                    return res
+            except (LiteLLMAuthError, LiteLLMApiError) as err:
+                _LOGGER.debug("%s endpoint unavailable: %s", endpoint, err)
         return None
 
     async def fetch_all_data(self) -> LiteLLMData:
@@ -279,7 +308,7 @@ class LiteLLMApiClient:
         is_healthy = await self.check_health()
         data = LiteLLMData(healthy=is_healthy)
 
-        # 1. Fetch key info
+        # 1. Fetch key info (if a specific key is configured)
         key_info = None
         if self.api_key:
             try:
@@ -296,7 +325,7 @@ class LiteLLMApiClient:
             if spend_val is not None:
                 try:
                     data.key_spend = float(spend_val)
-                    data.total_spend = data.key_spend
+                    data.total_spend = max(data.total_spend, data.key_spend)
                 except (ValueError, TypeError):
                     pass
 
@@ -325,7 +354,54 @@ class LiteLLMApiClient:
                     except (ValueError, TypeError):
                         pass
 
-        # 2. Fetch global spend report (if accessible)
+        # 2. Aggregated Proxy Activity (covers master key and all proxy requests)
+        agg = await self.get_aggregated_activity()
+        if agg and isinstance(agg, dict):
+            metadata = agg.get("metadata", {})
+            if isinstance(metadata, dict):
+                total_spend_meta = metadata.get("total_spend")
+                if total_spend_meta is not None:
+                    try:
+                        parsed_total = float(total_spend_meta)
+                        if parsed_total > 0 or data.total_spend == 0.0:
+                            data.total_spend = max(data.total_spend, parsed_total)
+                    except (ValueError, TypeError):
+                        pass
+
+                data.total_tokens = int(metadata.get("total_tokens", 0) or 0)
+                data.prompt_tokens = int(metadata.get("total_prompt_tokens", 0) or 0)
+                data.completion_tokens = int(metadata.get("total_completion_tokens", 0) or 0)
+                data.total_requests = int(metadata.get("total_api_requests", 0) or 0)
+                data.failed_requests = int(metadata.get("total_failed_requests", 0) or 0)
+
+            results = agg.get("results", [])
+            if isinstance(results, list):
+                today_str = date.today().isoformat()
+                for item in results:
+                    if not isinstance(item, dict):
+                        continue
+                    metrics = item.get("metrics", {})
+                    item_date = str(item.get("date", ""))
+                    if item_date == today_str and isinstance(metrics, dict):
+                        t_spend = metrics.get("spend")
+                        if t_spend is not None:
+                            try:
+                                data.today_spend = float(t_spend)
+                            except (ValueError, TypeError):
+                                pass
+
+                    breakdown = item.get("breakdown", {})
+                    if isinstance(breakdown, dict):
+                        models_data = breakdown.get("models", {})
+                        if isinstance(models_data, dict):
+                            for m_name, m_info in models_data.items():
+                                if isinstance(m_info, dict) and "spend" in m_info:
+                                    try:
+                                        data.model_spend[m_name] = data.model_spend.get(m_name, 0.0) + float(m_info["spend"])
+                                    except (ValueError, TypeError):
+                                        pass
+
+        # 3. Fetch global spend report (support group_by=api_key and default)
         report = await self.get_global_spend_report()
         if report:
             calc_spend = 0.0
@@ -340,34 +416,33 @@ class LiteLLMApiClient:
                         except (ValueError, TypeError):
                             pass
                 if calc_spend > 0:
-                    data.total_spend = calc_spend
+                    data.total_spend = max(data.total_spend, calc_spend)
             elif isinstance(report, dict):
                 total = report.get("total_spend") or report.get("spend")
                 if total is not None:
                     try:
-                        data.total_spend = float(total)
+                        data.total_spend = max(data.total_spend, float(total))
                     except (ValueError, TypeError):
                         pass
 
-        # 3. Spend per key list (admin)
+        # 4. Spend per key list (admin)
         keys = await self.get_spend_keys()
         if keys:
             data.keys_count = len(keys)
-            if data.total_spend == 0.0:
-                sum_keys = sum(
-                    float(k.get("spend", 0.0) or 0.0)
-                    for k in keys
-                    if isinstance(k, dict) and k.get("spend") is not None
-                )
-                if sum_keys > 0:
-                    data.total_spend = sum_keys
+            sum_keys = sum(
+                float(k.get("spend", 0.0) or 0.0)
+                for k in keys
+                if isinstance(k, dict) and k.get("spend") is not None
+            )
+            if sum_keys > 0:
+                data.total_spend = max(data.total_spend, sum_keys)
 
-        # 4. Spend per user list (admin)
+        # 5. Spend per user list (admin)
         users = await self.get_spend_users()
         if users:
             data.users_count = len(users)
 
-        # 5. Spend per tag list
+        # 6. Spend per tag list
         tags = await self.get_spend_tags()
         if tags and isinstance(tags, list):
             for t in tags:
@@ -377,19 +452,26 @@ class LiteLLMApiClient:
                     except (ValueError, TypeError):
                         pass
 
-        # 6. Daily activity
-        activity = await self.get_daily_activity()
-        if activity and isinstance(activity, list):
-            today_cost = 0.0
-            for act in activity:
-                if isinstance(act, dict):
-                    today_cost += float(act.get("spend", 0.0) or 0.0)
-                    model = act.get("model")
-                    if model:
-                        data.model_spend[model] = data.model_spend.get(model, 0.0) + float(
-                            act.get("spend", 0.0) or 0.0
-                        )
-            if today_cost > 0:
-                data.today_spend = today_cost
+        # 7. Fallback: If total spend is still 0, check spend logs
+        if data.total_spend == 0.0:
+            logs = await self.get_spend_logs(page_size=100)
+            if logs and isinstance(logs, list):
+                logs_spend = 0.0
+                today_str = date.today().isoformat()
+                for log in logs:
+                    if not isinstance(log, dict):
+                        continue
+                    cost = float(log.get("spend", 0.0) or 0.0)
+                    logs_spend += cost
+                    model = log.get("model")
+                    if model and cost > 0:
+                        data.model_spend[model] = data.model_spend.get(model, 0.0) + cost
+                    # Check today's spend
+                    start_time = str(log.get("startTime", "") or log.get("created_at", ""))
+                    if today_str in start_time:
+                        data.today_spend = (data.today_spend or 0.0) + cost
+                if logs_spend > 0:
+                    data.total_spend = logs_spend
 
         return data
+

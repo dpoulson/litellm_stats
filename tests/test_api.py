@@ -123,8 +123,21 @@ async def test_fetch_all_data():
             return [{"api_key": "k1", "spend": 25.5}, {"api_key": "k2", "spend": 50.0}]
         if "spend/tags" in endpoint:
             return [{"tag": "customer-bot", "spend": 30.0}]
-        if "user/daily/activity" in endpoint:
-            return [{"model": "gpt-4o", "spend": 12.0}]
+        if "daily/activity" in endpoint:
+            return {
+                "results": [
+                    {
+                        "date": "2026-09-14",
+                        "metrics": {"spend": 12.0},
+                        "breakdown": {"models": {"gpt-4o": {"spend": 12.0}}},
+                    }
+                ],
+                "metadata": {
+                    "total_spend": 225.0,
+                    "total_tokens": 5000,
+                    "total_api_requests": 20,
+                },
+            }
         return {}
 
     client._request = AsyncMock(side_effect=mock_request)
@@ -139,3 +152,5 @@ async def test_fetch_all_data():
     assert data.tag_spend == {"customer-bot": 30.0}
     assert data.model_spend == {"gpt-4o": 12.0}
     assert data.today_spend == 12.0
+    assert data.total_tokens == 5000
+    assert data.total_requests == 20
