@@ -161,11 +161,9 @@ class LiteLLMApiClient:
 
     async def get_key_info(self, key: str | None = None) -> dict[str, Any] | None:
         """Fetch info and spend for the current or specified key."""
-        target_key = key or self.api_key
-        if not target_key and not self.api_key:
-            return None
-
-        params = {"key": target_key} if target_key else None
+        # Only pass ?key= parameter if querying an external key different from authenticated key.
+        # Self-lookup must omit the query parameter so non-admin virtual keys can read their own stats.
+        params = {"key": key} if key and key != self.api_key else None
 
         # Try GET /key/info
         try:
@@ -174,14 +172,21 @@ class LiteLLMApiClient:
                 return data.get("info", data)
             return None
         except LiteLLMAuthError:
+            if params:
+                try:
+                    data = await self._request("GET", "key/info")
+                    if isinstance(data, dict):
+                        return data.get("info", data)
+                except Exception:
+                    pass
             raise
         except LiteLLMApiError:
             pass
 
         # Try POST /key/info with JSON body
-        if target_key:
+        if key:
             try:
-                data = await self._request("POST", "key/info", json_data={"key": target_key})
+                data = await self._request("POST", "key/info", json_data={"key": key})
                 if isinstance(data, dict):
                     return data.get("info", data)
             except Exception as err:
