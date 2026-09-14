@@ -18,10 +18,12 @@ async def test_client_init_and_headers():
     client = LiteLLMApiClient("localhost:4000/", api_key="sk-test-123")
     assert client.base_url == "http://localhost:4000"
     assert client.headers["Authorization"] == "Bearer sk-test-123"
+    assert client.headers["x-litellm-api-key"] == "sk-test-123"
 
     client_https = LiteLLMApiClient("https://proxy.example.com", api_key=None)
     assert client_https.base_url == "https://proxy.example.com"
     assert "Authorization" not in client_https.headers
+    assert "x-litellm-api-key" not in client_https.headers
 
 
 @pytest.mark.asyncio

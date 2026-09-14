@@ -30,9 +30,12 @@ class LiteLLMData:
 
     healthy: bool = True
     total_spend: float = 0.0
+    key_alias: str | None = None
     key_spend: float | None = None
     key_max_budget: float | None = None
     key_budget_remaining: float | None = None
+    key_budget_duration: str | None = None
+    key_budget_reset_at: str | None = None
     key_user_id: str | None = None
     key_team_id: str | None = None
     key_models: list[str] = field(default_factory=list)
@@ -72,6 +75,7 @@ class LiteLLMApiClient:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+            headers["x-litellm-api-key"] = self.api_key
         return headers
 
     async def _request(
@@ -158,14 +162,15 @@ class LiteLLMApiClient:
     async def get_key_info(self, key: str | None = None) -> dict[str, Any] | None:
         """Fetch info and spend for the current or specified key."""
         target_key = key or self.api_key
-        if not target_key:
+        if not target_key and not self.api_key:
             return None
 
-        # Try GET /key/info?key=...
+        params = {"key": target_key} if target_key else None
+
+        # Try GET /key/info
         try:
-            data = await self._request("GET", "key/info", params={"key": target_key})
+            data = await self._request("GET", "key/info", params=params)
             if isinstance(data, dict):
-                # Info might be nested under data['info']
                 return data.get("info", data)
             return None
         except LiteLLMAuthError:
@@ -174,12 +179,13 @@ class LiteLLMApiClient:
             pass
 
         # Try POST /key/info with JSON body
-        try:
-            data = await self._request("POST", "key/info", json_data={"key": target_key})
-            if isinstance(data, dict):
-                return data.get("info", data)
-        except Exception as err:
-            _LOGGER.debug("Could not retrieve key info: %s", err)
+        if target_key:
+            try:
+                data = await self._request("POST", "key/info", json_data={"key": target_key})
+                if isinstance(data, dict):
+                    return data.get("info", data)
+            except Exception as err:
+                _LOGGER.debug("Could not retrieve key info: %s", err)
 
         return None
 
@@ -202,7 +208,17 @@ class LiteLLMApiClient:
             return None
 
     async def get_spend_keys(self) -> list[dict[str, Any]] | None:
-        """Fetch spend per API key."""
+        """Fetch spend per API key using /key/list or /spend/keys."""
+        # Try /key/list?return_full_object=true first
+        try:
+            res = await self._request("GET", "key/list", params={"return_full_object": "true"})
+            if isinstance(res, list):
+                return res
+            if isinstance(res, dict) and "keys" in res:
+                return res["keys"]
+        except (LiteLLMAuthError, LiteLLMApiError) as err:
+            _LOGGER.debug("Key list endpoint unavailable: %s", err)
+
         try:
             res = await self._request("GET", "spend/keys")
             if isinstance(res, list):
@@ -227,14 +243,15 @@ class LiteLLMApiClient:
 
     async def get_spend_tags(self) -> list[dict[str, Any]] | None:
         """Fetch spend per tag."""
-        try:
-            res = await self._request("GET", "spend/tags")
-            if isinstance(res, list):
-                return res
-            if isinstance(res, dict) and "tags" in res:
-                return res["tags"]
-        except (LiteLLMAuthError, LiteLLMApiError) as err:
-            _LOGGER.debug("Spend tags endpoint unavailable: %s", err)
+        for endpoint in ("spend/tags", "global/spend/tags"):
+            try:
+                res = await self._request("GET", endpoint)
+                if isinstance(res, list):
+                    return res
+                if isinstance(res, dict) and "tags" in res:
+                    return res["tags"]
+            except (LiteLLMAuthError, LiteLLMApiError) as err:
+                _LOGGER.debug("%s endpoint unavailable: %s", endpoint, err)
         return None
 
     async def get_daily_activity(self) -> list[dict[str, Any]] | None:
@@ -269,6 +286,7 @@ class LiteLLMApiClient:
 
         if key_info:
             data.raw_key_info = key_info
+            data.key_alias = key_info.get("key_alias")
             spend_val = key_info.get("spend")
             if spend_val is not None:
                 try:
@@ -286,11 +304,21 @@ class LiteLLMApiClient:
                 except (ValueError, TypeError):
                     pass
 
+            data.key_budget_duration = key_info.get("budget_duration")
+            data.key_budget_reset_at = str(key_info.get("budget_reset_at")) if key_info.get("budget_reset_at") else None
             data.key_user_id = key_info.get("user_id")
             data.key_team_id = key_info.get("team_id")
             models = key_info.get("models")
             if isinstance(models, list):
                 data.key_models = [str(m) for m in models]
+
+            model_budgets_usage = key_info.get("model_max_budget_usage")
+            if isinstance(model_budgets_usage, dict):
+                for m_name, m_spend in model_budgets_usage.items():
+                    try:
+                        data.model_spend[m_name] = float(m_spend)
+                    except (ValueError, TypeError):
+                        pass
 
         # 2. Fetch global spend report (if accessible)
         report = await self.get_global_spend_report()
