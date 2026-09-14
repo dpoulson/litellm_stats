@@ -1,0 +1,47 @@
+alias: "LiteLLM High Cost Alert"
+description: "Notify administrator when LiteLLM cost or budget utilization exceeds threshold."
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.litellm_proxy_budget_usage
+    above: 80
+    id: budget_warning
+  - platform: numeric_state
+    entity_id: sensor.litellm_proxy_budget_usage
+    above: 100
+    id: budget_exceeded
+  - platform: numeric_state
+    entity_id: sensor.litellm_proxy_total_spend
+    above: 50
+    id: total_spend_milestone
+condition: []
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: budget_exceeded
+        sequence:
+          - service: persistent_notification.create
+            data:
+              title: "LiteLLM Alert: Budget Exceeded!"
+              message: "LiteLLM budget usage is at {{ states('sensor.litellm_proxy_budget_usage') }}% (${{ states('sensor.litellm_proxy_key_spend') }} spent)."
+              notification_id: litellm_budget_critical
+
+      - conditions:
+          - condition: trigger
+            id: budget_warning
+        sequence:
+          - service: persistent_notification.create
+            data:
+              title: "LiteLLM Warning: 80% Budget Reached"
+              message: "LiteLLM API key has reached {{ states('sensor.litellm_proxy_budget_usage') }}% of budget. Remaining: ${{ states('sensor.litellm_proxy_remaining_budget') }}."
+              notification_id: litellm_budget_warn
+
+      - conditions:
+          - condition: trigger
+            id: total_spend_milestone
+        sequence:
+          - service: notify.persistent_notification
+            data:
+              title: "LiteLLM Spend Milestone"
+              message: "LiteLLM total spend has crossed ${{ states('sensor.litellm_proxy_total_spend') }}."
+mode: single

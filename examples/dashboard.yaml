@@ -1,0 +1,43 @@
+title: "LiteLLM AI Monitoring"
+views:
+  - title: "Overview"
+    path: "litellm-overview"
+    badges:
+      - entity: sensor.litellm_proxy_total_spend
+      - entity: sensor.litellm_proxy_remaining_budget
+      - entity: sensor.litellm_proxy_budget_usage
+    cards:
+      - type: gauge
+        entity: sensor.litellm_proxy_budget_usage
+        name: "LiteLLM Budget Consumed"
+        min: 0
+        max: 100
+        needle: true
+        severity:
+          green: 0
+          yellow: 70
+          red: 90
+
+      - type: entities
+        title: "LiteLLM API & Spend Metrics"
+        show_header_toggle: false
+        entities:
+          - entity: sensor.litellm_proxy_total_spend
+            name: "Total Spend"
+          - entity: sensor.litellm_proxy_key_spend
+            name: "Key Spend"
+          - entity: sensor.litellm_proxy_remaining_budget
+            name: "Remaining Budget"
+          - entity: sensor.litellm_proxy_today_spend
+            name: "Spend Today"
+          - entity: sensor.litellm_proxy_active_keys
+            name: "Active Proxy Keys"
+          - entity: sensor.litellm_proxy_top_model_by_spend
+            name: "Highest Spend Model"
+
+      - type: history-graph
+        title: "Spend Trends (Last 24 Hours)"
+        hours_to_show: 24
+        entities:
+          - entity: sensor.litellm_proxy_total_spend
+          - entity: sensor.litellm_proxy_today_spend

@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to LiteLLM Proxy",
+        "description": "Enter the connection details for your LiteLLM proxy instance.",
+        "data": {
+          "api_host": "LiteLLM Host / URL (e.g. http://localhost:4000)",
+          "api_key": "API Key / Master Key (optional)",
+          "currency": "Currency Code",
+          "scan_interval": "Update Interval (seconds)",
+          "verify_ssl": "Verify SSL Certificate"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to LiteLLM proxy. Check the URL and ensure the proxy is running.",
+      "invalid_auth": "Authentication failed. Check your API key.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This LiteLLM instance is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LiteLLM Options",
+        "data": {
+          "currency": "Currency Code",
+          "scan_interval": "Update Interval (seconds)"
+        }
+      }
+    }
+  }
+}
