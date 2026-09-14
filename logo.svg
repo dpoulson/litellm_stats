@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+    <linearGradient id="grad-brain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+    <linearGradient id="grad-accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background Squircle -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="url(#grad-bg)" stroke="#334155" stroke-width="4"/>
+
+  <!-- Glowing network brain group -->
+  <g filter="url(#glow)" transform="translate(0, -10)">
+    <!-- Neural left hemisphere -->
+    <path d="M 230 110 C 170 110 120 155 120 215 C 120 245 132 270 150 290 C 135 315 140 345 160 365 C 180 385 210 390 230 385" 
+          fill="none" stroke="url(#grad-brain)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Neural nodes and connections -->
+    <circle cx="170" cy="180" r="10" fill="#38bdf8"/>
+    <circle cx="150" cy="260" r="9" fill="#818cf8"/>
+    <circle cx="190" cy="330" r="10" fill="#a855f7"/>
+    <circle cx="215" cy="220" r="8" fill="#38bdf8"/>
+    <line x1="170" y1="180" x2="215" y2="220" stroke="url(#grad-brain)" stroke-width="6"/>
+    <line x1="150" y1="260" x2="215" y2="220" stroke="url(#grad-brain)" stroke-width="6"/>
+    <line x1="150" y1="260" x2="190" y2="330" stroke="url(#grad-brain)" stroke-width="6"/>
+
+    <!-- Right hemisphere / Metrics & Analytics -->
+    <path d="M 282 110 C 342 110 392 155 392 215 C 392 245 380 270 362 290 C 377 315 372 345 352 365 C 332 385 302 390 282 385" 
+          fill="none" stroke="url(#grad-brain)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Bar Chart Metrics inside right hemisphere -->
+    <rect x="290" y="270" width="18" height="75" rx="6" fill="url(#grad-accent)"/>
+    <rect x="318" y="235" width="18" height="110" rx="6" fill="url(#grad-accent)"/>
+    <rect x="346" y="200" width="18" height="145" rx="6" fill="url(#grad-accent)"/>
+
+    <!-- Ascending Trend Line & Arrow -->
+    <polyline points="135,355 215,280 275,310 375,170" fill="none" stroke="#22d3ee" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="375,150 388,185 355,175" fill="#22d3ee"/>
+    <circle cx="135" cy="355" r="9" fill="#22d3ee"/>
+    <circle cx="215" cy="280" r="9" fill="#22d3ee"/>
+    <circle cx="275" cy="310" r="9" fill="#22d3ee"/>
+
+    <!-- Currency / Cost Symbol -->
+    <text x="316" y="165" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="44" fill="#38bdf8" text-anchor="middle">$</text>
+  </g>
+
+  <!-- Typography -->
+  <text x="256" y="442" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="38" fill="#f8fafc" letter-spacing="2" text-anchor="middle">LiteLLM</text>
+  <text x="256" y="470" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="16" fill="#94a3b8" letter-spacing="3" text-anchor="middle">COST &amp; USAGE</text>
+</svg>
